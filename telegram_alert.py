@@ -11,6 +11,12 @@ from topaz_scraper import TopazScraper
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN environment variable is missing")
+
+if not CHAT_ID:
+    raise RuntimeError("CHAT_ID environment variable is missing")
+
 
 sent_matches = set()
 
