@@ -1,1 +1,0 @@
-python telegram_alert.py
