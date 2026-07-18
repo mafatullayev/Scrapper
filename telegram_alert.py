@@ -71,13 +71,13 @@ def check_odds(match):
     )
 
     # TEST
-    if home == 5.00:
+    if home == 1.21:
         alerts.append(
             f"1️⃣ Ev {home:.2f}"
         )
 
     # TEST
-    if away == 5.00:
+    if away == 1.21:
         alerts.append(
             f"2️⃣ Qonaq {away:.2f}"
         )
