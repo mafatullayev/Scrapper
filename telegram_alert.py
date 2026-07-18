@@ -1,5 +1,6 @@
 import time
 import requests
+import os
 from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -7,8 +8,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from topaz_scraper import TopazScraper
 
 
-BOT_TOKEN = "5841038637:AAFIFQA7v9bJyznbGcWGjgUh37AnJtlXcSc"
-CHAT_ID = "1217867599"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 
 sent_matches = set()
