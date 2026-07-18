@@ -11,6 +11,10 @@ from topaz_scraper import TopazScraper
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+TARGET_ODD = float(
+    os.getenv("TARGET_ODD", "5.00")
+)
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable is missing")
 
@@ -77,13 +81,13 @@ def check_odds(match):
     )
 
     # TEST
-    if home == 5.00:
+    if home == TARGET_ODD:
         alerts.append(
             f"1️⃣ Ev {home:.2f}"
         )
 
     # TEST
-    if away == 5.00:
+    if away == TARGET_ODD:
         alerts.append(
             f"2️⃣ Qonaq {away:.2f}"
         )
