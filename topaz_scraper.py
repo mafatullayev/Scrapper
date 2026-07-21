@@ -100,47 +100,36 @@ class TopazScraper:
 
                 markets = event.get("markets", [])
 
-
+                match = {
+                    "country": country,
+                    "tournament": tournament,
+                    "home": home,
+                    "away": away,
+                    "start_time": event.get("startedAt"),
+                    "odds": {}
+                }
 
                 for market in markets:
 
-
+                    # Tam oyun 1X2
                     if market.get("marketRefId") == "1:1":
 
-                        match = {
-
-                            "country": country,
-
-                            "tournament": tournament,
-
-                            "home": home,
-
-                            "away": away,
-
-                            "start_time": event.get("startedAt"),
-
-                            "odds": {}
-
-                        }
-
-
-
                         for outcome in market.get("outcomes", []):
-
-
-                            code = str(
-                                outcome.get("shortCode")
-                            )
-
-
+                            code = str(outcome.get("shortCode"))
                             odd = outcome.get("odd")
-
 
                             match["odds"][code] = odd
 
+                    # 1-ci hissə 1X2
+                    elif market.get("marketRefId") == "1:60":
 
+                        for outcome in market.get("outcomes", []):
+                            code = str(outcome.get("shortCode"))
+                            odd = outcome.get("odd")
 
-                        matches.append(match)
+                            match["odds"][code] = odd
+
+                matches.append(match)
 
 
 

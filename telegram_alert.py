@@ -72,25 +72,19 @@ def check_odds(match):
 
     alerts = []
 
-    home = float(
-        match["odds"].get("101", 0)
-    )
+    home = float(match["odds"].get("101", 0))
+    away = float(match["odds"].get("102", 0))
 
-    away = float(
-        match["odds"].get("102", 0)
-    )
+    first_half_draw = float(match["odds"].get("1001", 0))
 
-    # TEST
     if home == TARGET_ODD:
-        alerts.append(
-            f"1️⃣ Ev {home:.2f}"
-        )
+        alerts.append(f"1️⃣ Ev {home:.2f}")
 
-    # TEST
     if away == TARGET_ODD:
-        alerts.append(
-            f"2️⃣ Qonaq {away:.2f}"
-        )
+        alerts.append(f"2️⃣ Qonaq {away:.2f}")
+
+    if first_half_draw in (2.29, 2.31):
+        alerts.append(f"⏱️ 1-ci Hissə X {first_half_draw:.2f}")
 
     return alerts
 
