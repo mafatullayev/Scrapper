@@ -90,13 +90,7 @@ def check_odds(match):
 
 
 def create_key(match):
-
-    return (
-        f"{match['home']}_"
-        f"{match['away']}_"
-        f"{match['odds'].get('101')}_"
-        f"{match['odds'].get('102')}"
-    )
+    return match["id"]
 
 
 def process_matches(matches):
