@@ -101,6 +101,7 @@ class TopazScraper:
                 markets = event.get("markets", [])
 
                 match = {
+                    "id": event["id"],
                     "country": country,
                     "tournament": tournament,
                     "home": home,
