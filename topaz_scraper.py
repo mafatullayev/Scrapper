@@ -39,7 +39,7 @@ class TopazScraper:
 
             "startDate": now,
 
-            "endDate": now + (24 * 60 * 60 * 1000)
+            "endDate": now + (48 * 60 * 60 * 1000)
 
         }
 
