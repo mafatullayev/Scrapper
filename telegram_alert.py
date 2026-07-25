@@ -15,14 +15,30 @@ TARGET_ODD = float(
     os.getenv("TARGET_ODD", "5.00")
 )
 
+SMART_DRAW_ODD = float(
+    os.getenv("SMART_DRAW_ODD", "1.85")
+)
+
+SMART_BEFORE_MINUTES = int(
+    os.getenv("SMART_BEFORE_MINUTES", "10")
+)
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable is missing")
 
 if not CHAT_ID:
     raise RuntimeError("CHAT_ID environment variable is missing")
 
+if not SMART_DRAW_ODD:
+    raise RuntimeError("SMART_DRAW_ODD environment variable is missing")
+
+if not SMART_BEFORE_MINUTES:
+    raise RuntimeError("SMART_BEFORE_MINUTES environment variable is missing")
+
 
 sent_matches = set()
+
+smart_sent_matches = set()
 
 
 def telegram_send(text):
@@ -91,12 +107,64 @@ def check_odds(match):
 def create_key(match):
     return match["id"]
 
+def check_smart_first_half_draw(match):
+
+    first_half_draw = float(
+        match["odds"].get("1001", 0)
+    )
+
+    if first_half_draw != SMART_DRAW_ODD:
+        return False
+
+    start_time = match.get("start_time")
+
+    if not start_time:
+        return False
+
+    start = datetime.fromtimestamp(
+        int(start_time),
+        tz=timezone.utc
+    )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    remaining = (
+        start - now
+    ).total_seconds() / 60
+
+    if remaining < 0:
+        return False
+
+    if remaining > SMART_BEFORE_MINUTES:
+        return False
+
+    return True
 
 def process_matches(matches):
 
     for match in matches:
 
         alerts = check_odds(match)
+
+        smart_key = (
+            f"{match['home']}_"
+            f"{match['away']}_"
+            "SMART_DRAW"
+        )
+
+        if (
+                check_smart_first_half_draw(match)
+                and smart_key not in smart_sent_matches
+        ):
+            alerts.append(
+                f"🧠 SMART\n⏱ 1-ci hissə X {SMART_DRAW_ODD:.2f}"
+            )
+
+            smart_sent_matches.add(
+                smart_key
+            )
 
         if not alerts:
             continue
