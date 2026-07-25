@@ -83,7 +83,7 @@ def check_odds(match):
         alerts.append(f"2️⃣ Qonaq {away:.2f}")
 
     if draw == 2.31:
-        alerts.append(f"❌Heç-heçə {draw:.2f}")
+        alerts.append(f"❌ Heç-heçə {draw:.2f}")
 
     return alerts
 
