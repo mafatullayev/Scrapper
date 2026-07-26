@@ -389,7 +389,7 @@ def main():
     scheduler.add_job(
         scraper_job,
         trigger="interval",
-        minutes=5,
+        minutes=3,
         max_instances=1,
         coalesce=True,
         misfire_grace_time=60
