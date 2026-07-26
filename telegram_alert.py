@@ -25,7 +25,9 @@ if SMART_BEFORE_MINUTES <= 0:
     raise RuntimeError("SMART_BEFORE_MINUTES must be greater than 0")
 
 
-normal_sent_matches = set()
+target_sent_matches = set()
+
+combo_sent_matches = set()
 
 smart_sent_matches = set()
 
@@ -33,7 +35,6 @@ opening_first_half_draw = {}
 
 
 def odds_equal(left, right):
-    """Compare betting odds at two-decimal precision."""
     try:
         return round(float(left), 2) == round(float(right), 2)
     except (TypeError, ValueError):
@@ -41,7 +42,6 @@ def odds_equal(left, right):
 
 
 def telegram_send(text):
-    """Send a Telegram message. Return True only when Telegram accepts it."""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
@@ -70,13 +70,9 @@ def telegram_send(text):
 
 
 def timestamp_to_datetime(value, tz):
-    """
-    Convert Unix seconds or milliseconds to a timezone-aware datetime.
-    Topaz currently returns startedAt in seconds, but milliseconds are
-    supported defensively.
-    """
     timestamp = int(value)
 
+    # Defensive support for millisecond timestamps.
     if timestamp > 10_000_000_000:
         timestamp = timestamp / 1000
 
@@ -89,10 +85,12 @@ def format_time(value):
 
     try:
         baku_timezone = timezone(timedelta(hours=4))
+
         game_datetime = timestamp_to_datetime(
             value,
             baku_timezone
         )
+
         return game_datetime.strftime("%d.%m.%Y %H:%M")
 
     except (TypeError, ValueError, OSError) as error:
@@ -109,6 +107,7 @@ def remaining_minutes_until_game(start_time):
             start_time,
             timezone.utc
         )
+
         now_utc = datetime.now(timezone.utc)
 
         return (
@@ -119,32 +118,75 @@ def remaining_minutes_until_game(start_time):
         print("REMAINING TIME ERROR:", error)
         return None
 
-def check_normal_odds(match):
-    alerts = []
+def get_normal_conditions(match):
     odds = match.get("odds", {})
 
-    draw = odds.get("100")
     home = odds.get("101")
+    draw = odds.get("100")
     away = odds.get("102")
 
-    if odds_equal(home, TARGET_ODD):
-        alerts.append(f"1️⃣ Ev {float(home):.2f}")
+    home_hit = odds_equal(home, TARGET_ODD)
+    away_hit = odds_equal(away, TARGET_ODD)
+    draw_hit = odds_equal(draw, FULL_TIME_DRAW_ODD)
 
-    if odds_equal(away, TARGET_ODD):
-        alerts.append(f"2️⃣ Qonaq {float(away):.2f}")
+    target_hit = home_hit or away_hit
+    combo_hit = target_hit and draw_hit
 
-    if odds_equal(draw, FULL_TIME_DRAW_ODD):
-        alerts.append(
-            f"🤝 Heç-heçə {float(draw):.2f}"
+    return {
+        "home": home,
+        "draw": draw,
+        "away": away,
+        "home_hit": home_hit,
+        "away_hit": away_hit,
+        "draw_hit": draw_hit,
+        "target_hit": target_hit,
+        "combo_hit": combo_hit,
+    }
+
+
+def build_target_alert(conditions):
+    parts = []
+
+    if conditions["home_hit"]:
+        parts.append(
+            f"1️⃣ Ev {float(conditions['home']):.2f}"
         )
 
-    return alerts
+    if conditions["away_hit"]:
+        parts.append(
+            f"2️⃣ Qonaq {float(conditions['away']):.2f}"
+        )
+
+    if not parts:
+        return None
+
+    return "🎯 TARGET: " + " | ".join(parts)
+
+
+def build_combo_alert(conditions):
+    target_parts = []
+
+    if conditions["home_hit"]:
+        target_parts.append(
+            f"1️⃣ Ev {float(conditions['home']):.2f}"
+        )
+
+    if conditions["away_hit"]:
+        target_parts.append(
+            f"2️⃣ Qonaq {float(conditions['away']):.2f}"
+        )
+
+    if not target_parts or not conditions["draw_hit"]:
+        return None
+
+    return (
+        "🔥 COMBO: "
+        + " | ".join(target_parts)
+        + f" + 🤝 FT X {float(conditions['draw']):.2f}"
+    )
 
 def register_opening_first_half_draw(match):
-    """
-    Save the first valid 1st-half draw odd observed for the match.
-    Do not store 0 when the 1:60 market is absent or temporarily unavailable.
-    """
+
     match_id = match["id"]
 
     if match_id in opening_first_half_draw:
@@ -172,14 +214,7 @@ def register_opening_first_half_draw(match):
 
 
 def get_smart_alert(match):
-    """
-    Return the smart-alert text and remaining minutes when all conditions match:
 
-    1. The first valid 1H draw odd observed by this process was SMART_DRAW_ODD.
-    2. The current 1H draw odd is SMART_DRAW_ODD.
-    3. The game starts in 0..SMART_BEFORE_MINUTES minutes.
-    4. This smart alert has not already been sent.
-    """
     match_id = match["id"]
     smart_key = f"{match_id}_SMART"
 
@@ -208,7 +243,10 @@ def get_smart_alert(match):
     if remaining is None:
         return None, None
 
-    if remaining < 0 or remaining > SMART_BEFORE_MINUTES:
+    if remaining < 0:
+        return None, None
+
+    if remaining > SMART_BEFORE_MINUTES:
         return None, None
 
     print(
@@ -219,7 +257,7 @@ def get_smart_alert(match):
     )
 
     alert_text = (
-        f"🧠 1-ci hissə X {float(current_draw):.2f}\n"
+        f"🧠 SMART: 1-ci hissə X {float(current_draw):.2f}\n"
         f"⌛ Oyuna təxminən {max(0, int(remaining))} dəqiqə qalıb"
     )
 
@@ -232,15 +270,38 @@ def process_matches(matches):
         alerts = []
         keys_to_mark_after_success = []
 
-        normal_key = f"{match_id}_NORMAL"
+        target_key = f"{match_id}_TARGET"
+        combo_key = f"{match_id}_COMBO"
 
-        if normal_key not in normal_sent_matches:
-            normal_alerts = check_normal_odds(match)
+        conditions = get_normal_conditions(match)
 
-            if normal_alerts:
-                alerts.extend(normal_alerts)
+        if (
+            conditions["combo_hit"]
+            and combo_key not in combo_sent_matches
+        ):
+            combo_alert = build_combo_alert(conditions)
+
+            if combo_alert:
+                alerts.append(combo_alert)
                 keys_to_mark_after_success.append(
-                    ("normal", normal_key)
+                    ("combo", combo_key)
+                )
+
+                if target_key not in target_sent_matches:
+                    keys_to_mark_after_success.append(
+                        ("target", target_key)
+                    )
+
+        elif (
+            conditions["target_hit"]
+            and target_key not in target_sent_matches
+        ):
+            target_alert = build_target_alert(conditions)
+
+            if target_alert:
+                alerts.append(target_alert)
+                keys_to_mark_after_success.append(
+                    ("target", target_key)
                 )
 
         smart_alert, smart_key = get_smart_alert(match)
@@ -267,24 +328,34 @@ def process_matches(matches):
 
 ⚔️ {match['home']} - {match['away']}
 
-🎯 {' | '.join(alerts)}
+{chr(10).join(alerts)}
 """
 
         if not telegram_send(message):
             continue
 
         for alert_type, key in keys_to_mark_after_success:
-            if alert_type == "normal":
-                normal_sent_matches.add(key)
+
+            if alert_type == "target":
+                target_sent_matches.add(key)
+
+            elif alert_type == "combo":
+                combo_sent_matches.add(key)
+
             elif alert_type == "smart":
                 smart_sent_matches.add(key)
 
         print(
             "SENT:",
-            match["id"],
+            match_id,
             match["home"],
             "-",
-            match["away"]
+            match["away"],
+            "|",
+            ", ".join(
+                alert_type.upper()
+                for alert_type, _ in keys_to_mark_after_success
+            )
         )
 
 
@@ -293,7 +364,9 @@ def scraper_job():
 
     try:
         scraper = TopazScraper()
+
         data = scraper.get_events()
+
         matches = scraper.extract_1x2(data)
 
         print("Matches:", len(matches))
@@ -308,28 +381,33 @@ def scraper_job():
         )
 
 
-scheduler = BackgroundScheduler(
-    timezone="UTC"
-)
+def main():
+    scheduler = BackgroundScheduler(
+        timezone="UTC"
+    )
 
-scheduler.add_job(
-    scraper_job,
-    trigger="interval",
-    minutes=5,
-    max_instances=1,
-    coalesce=True,
-    misfire_grace_time=60
-)
+    scheduler.add_job(
+        scraper_job,
+        trigger="interval",
+        minutes=5,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=60
+    )
 
-scheduler.start()
+    scheduler.start()
 
-print("Telegram Topaz watcher started...")
+    print("Telegram Topaz watcher started...")
 
-scraper_job()
+    scraper_job()
 
-try:
-    while True:
-        time.sleep(10)
+    try:
+        while True:
+            time.sleep(10)
 
-except KeyboardInterrupt:
-    scheduler.shutdown()
+    except KeyboardInterrupt:
+        scheduler.shutdown()
+
+
+if __name__ == "__main__":
+    main()
