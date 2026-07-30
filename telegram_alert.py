@@ -207,10 +207,12 @@ def register_opening_first_half_draw(match):
 
     opening_first_half_draw[match_id] = current_draw
 
-    print(
-        f"OPENING OBSERVED: {match['home']} - {match['away']} | "
-        f"1H X={current_draw:.2f}"
-    )
+    if odds_equal(current_draw, SMART_DRAW_ODD):
+        print(
+            f"SMART OPENING CANDIDATE: "
+            f"{match['home']} - {match['away']} | "
+            f"1H X={current_draw:.2f}"
+        )
 
 
 def get_smart_alert(match):
