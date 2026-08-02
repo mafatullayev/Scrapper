@@ -65,6 +65,22 @@ class TopazScraper:
 
             data = response.json()
 
+            seasons = (
+                    data.get("item", {}).get("seasons", [])
+                    or []
+            )
+
+            raw_event_count = sum(
+                len(season.get("events", []) or [])
+                for season in seasons
+            )
+
+            print(
+                f"WINDOW {window_index + 1}/3 "
+                f"STATUS: {response.status_code} "
+                f"RAW EVENTS: {raw_event_count}"
+            )
+
             if not data.get("info", {}).get(
                     "success",
                     False
@@ -212,5 +228,15 @@ class TopazScraper:
             for match in matches_by_id.values()
             if match["odds"]
         ]
+
+        print(
+            "UNIQUE EVENTS:",
+            len(matches_by_id)
+        )
+
+        print(
+            "MATCHES WITH RELEVANT ODDS:",
+            len(matches)
+        )
 
         return matches
