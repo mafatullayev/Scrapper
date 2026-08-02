@@ -56,11 +56,6 @@ class TopazScraper:
                 timeout=30
             )
 
-            print(
-                f"WINDOW {window_index + 1}/3 "
-                f"STATUS: {response.status_code}"
-            )
-
             response.raise_for_status()
 
             data = response.json()
