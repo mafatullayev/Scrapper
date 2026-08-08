@@ -15,6 +15,10 @@ SMART_DRAW_ODD = float(os.getenv("SMART_DRAW_ODD", "1.85"))
 SMART_BEFORE_MINUTES = int(os.getenv("SMART_BEFORE_MINUTES", "10"))
 FULL_TIME_DRAW_ODD = 2.31
 
+ON1_ODD = 1.31
+BTTS_TARGET_ODDS = (1.70, 1.84, 1.86)
+SPECIAL_ALERT_BEFORE_MINUTES = 60
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable is missing")
 
@@ -26,10 +30,10 @@ if SMART_BEFORE_MINUTES <= 0:
 
 
 target_sent_matches = set()
-
 combo_sent_matches = set()
-
 smart_sent_matches = set()
+on1_sent_matches = set()
+btts_sent_matches = set()
 
 opening_first_half_draw = {}
 
@@ -72,7 +76,6 @@ def telegram_send(text):
 def timestamp_to_datetime(value, tz):
     timestamp = int(value)
 
-    # Defensive support for millisecond timestamps.
     if timestamp > 10_000_000_000:
         timestamp = timestamp / 1000
 
@@ -117,6 +120,24 @@ def remaining_minutes_until_game(start_time):
     except (TypeError, ValueError, OSError) as error:
         print("REMAINING TIME ERROR:", error)
         return None
+
+
+def is_within_before_minutes(match, before_minutes):
+    remaining = remaining_minutes_until_game(
+        match.get("start_time")
+    )
+
+    if remaining is None:
+        return False, None
+
+    if remaining < 0:
+        return False, remaining
+
+    if remaining > before_minutes:
+        return False, remaining
+
+    return True, remaining
+
 
 def get_normal_conditions(match):
     odds = match.get("odds", {})
@@ -184,6 +205,81 @@ def build_combo_alert(conditions):
         + " | ".join(target_parts)
         + f" + 🤝 FT X {float(conditions['draw']):.2f}"
     )
+
+
+def get_on1_alert(match):
+    match_id = match["id"]
+    on1_key = f"{match_id}_ON1"
+
+    if on1_key in on1_sent_matches:
+        return None, None
+
+    home_odd = match.get("odds", {}).get("101")
+
+    if not odds_equal(home_odd, ON1_ODD):
+        return None, None
+
+    in_time_window, remaining = is_within_before_minutes(
+        match,
+        SPECIAL_ALERT_BEFORE_MINUTES
+    )
+
+    if not in_time_window:
+        return None, None
+
+    print(
+        f"ON1 MATCH: {match['home']} - {match['away']} | "
+        f"Home={float(home_odd):.2f} "
+        f"Remaining={remaining:.1f}m"
+    )
+
+    alert_text = (
+        f"🟢 ON1: 1️⃣ Ev {float(home_odd):.2f}\n"
+        f"⌛ Oyuna təxminən {max(0, int(remaining))} dəqiqə qalıb"
+    )
+
+    return alert_text, on1_key
+
+
+def get_btts_alert(match):
+    match_id = match["id"]
+    btts_key = f"{match_id}_BTTS"
+
+    if btts_key in btts_sent_matches:
+        return None, None
+
+    btts_odd = match.get("btts_yes_odd")
+
+    if btts_odd is None:
+        return None, None
+
+    if not any(
+        odds_equal(btts_odd, target_odd)
+        for target_odd in BTTS_TARGET_ODDS
+    ):
+        return None, None
+
+    in_time_window, remaining = is_within_before_minutes(
+        match,
+        SPECIAL_ALERT_BEFORE_MINUTES
+    )
+
+    if not in_time_window:
+        return None, None
+
+    print(
+        f"BTTS MATCH: {match['home']} - {match['away']} | "
+        f"BTTS YES={float(btts_odd):.2f} "
+        f"Remaining={remaining:.1f}m"
+    )
+
+    alert_text = (
+        f"⚽️ Hər iki komanda qol vuracaq {float(btts_odd):.2f}\n"
+        f"⌛ Oyuna təxminən {max(0, int(remaining))} dəqiqə qalıb"
+    )
+
+    return alert_text, btts_key
+
 
 def register_opening_first_half_draw(match):
 
@@ -265,6 +361,7 @@ def get_smart_alert(match):
 
     return alert_text, smart_key
 
+
 def process_matches(matches):
     for match in matches:
         match_id = match["id"]
@@ -306,6 +403,22 @@ def process_matches(matches):
                     ("target", target_key)
                 )
 
+        on1_alert, on1_key = get_on1_alert(match)
+
+        if on1_alert:
+            alerts.append(on1_alert)
+            keys_to_mark_after_success.append(
+                ("on1", on1_key)
+            )
+
+        btts_alert, btts_key = get_btts_alert(match)
+
+        if btts_alert:
+            alerts.append(btts_alert)
+            keys_to_mark_after_success.append(
+                ("btts", btts_key)
+            )
+
         smart_alert, smart_key = get_smart_alert(match)
 
         if smart_alert:
@@ -343,6 +456,12 @@ def process_matches(matches):
 
             elif alert_type == "combo":
                 combo_sent_matches.add(key)
+
+            elif alert_type == "on1":
+                on1_sent_matches.add(key)
+
+            elif alert_type == "btts":
+                btts_sent_matches.add(key)
 
             elif alert_type == "smart":
                 smart_sent_matches.add(key)

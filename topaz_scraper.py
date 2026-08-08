@@ -173,7 +173,8 @@ class TopazScraper:
                                     or event.get("date")
                                     or event.get("scheduled")
                             ),
-                            "odds": {}
+                            "odds": {},
+                            "btts_yes_odd": None
                         }
 
                     match = matches_by_id[event_id]
@@ -189,39 +190,54 @@ class TopazScraper:
                             "marketRefId"
                         )
 
-                        if market_ref_id not in {
-                            "1:1",
-                            "1:60"
-                        }:
-                            continue
-
                         outcomes = (
                                 market.get("outcomes")
                                 or []
                         )
 
-                        for outcome in outcomes:
+                        if market_ref_id in {
+                            "1:1",
+                            "1:60"
+                        }:
+                            for outcome in outcomes:
 
-                            short_code = outcome.get(
-                                "shortCode"
-                            )
+                                short_code = outcome.get(
+                                    "shortCode"
+                                )
 
-                            odd = outcome.get("odd")
+                                odd = outcome.get("odd")
 
-                            if (
-                                    short_code is None
-                                    or odd is None
-                            ):
-                                continue
+                                if (
+                                        short_code is None
+                                        or odd is None
+                                ):
+                                    continue
 
-                            match["odds"][
-                                str(short_code)
-                            ] = odd
+                                match["odds"][
+                                    str(short_code)
+                                ] = odd
+
+                        elif market_ref_id == "1:29":
+                            for outcome in outcomes:
+
+                                if outcome.get("outcomeRefId") != "1:74":
+                                    continue
+
+                                odd = outcome.get("odd")
+
+                                if odd is None:
+                                    continue
+
+                                match["btts_yes_odd"] = odd
+                                break
 
         matches = [
             match
             for match in matches_by_id.values()
-            if match["odds"]
+            if (
+                match["odds"]
+                or match["btts_yes_odd"] is not None
+            )
         ]
 
         print(
